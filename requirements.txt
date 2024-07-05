@@ -1,0 +1,8 @@
+Flask
+pandas
+pyautogui
+ics
+pytz
+selenium
+webdriver-manager
+beautifulsoup4
