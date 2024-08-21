@@ -11,47 +11,79 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+from selenium.common.exceptions import TimeoutException
 from webdriver_manager.chrome import ChromeDriverManager
 from bs4 import BeautifulSoup
-from flask import Flask, render_template, send_file
-
-app = Flask(__name__)
+from pynput.keyboard import Key, Controller
 
 local_tz = pytz.timezone('Europe/Copenhagen')
 
 options = Options()
 options.headless = True  # Set to False for debugging (so you can see the browser)
+options.add_argument("--no-sandbox")
+# options.add_argument('headless')
+options.add_argument("--disable-dev-shm-usage")
+options.add_argument("--disable-gpu")
+options.add_argument("--disable-extensions")
+options.add_argument("--disable-infobars")
+options.add_argument("--disable-notifications")
+options.add_argument("--remote-debugging-port=9222")
+options.add_argument("--window-size=1920,1080")
+options.add_argument("--disable-blink-features=AutomationControlled")
+options.add_argument("--user-data-dir=/tmp/chrome")  # Use a temporary profile
+options.add_argument("--no-first-run")  # Skip first run check
+options.add_argument("--disable-default-apps")  # Disable default apps
 driver = webdriver.Chrome(service=Service(ChromeDriverManager().install()), options=options)
 
 def login_and_scrape(email, password):
     try:
-        login_url = "https://v2.flexybox.com/app/log-ind/app/beskeder"
+        # login_url = "https://v2.flexybox.com/app/log-ind/app/beskeder"
         data_url = "https://v2.flexybox.com/app/oversigt/vagtliste"
 
-        driver.get(login_url)
+        keyboard = Controller()
+
+        print("gg")
+        driver.get(data_url)
         print("Page Title:", driver.title)
         print()
 
-        login_credentials = {
-            "mail": email,
-            "password": password
-        }
+        print("0")
+        # Wait for the email input field to be present
+        try:
+            email_field = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='UserName']")))
+            time.sleep(1)
+        except TimeoutException:
+            print("Timed out waiting for email input field to load")
+            return None
 
-        email_field = driver.find_element(By.CSS_SELECTOR, "input[name='UserName']")
-        email_field.send_keys(login_credentials['mail'])
+        email_field.send_keys(email)
+        print("1")
 
-        password_field = driver.find_element(By.CSS_SELECTOR, "input[name='Password']")
-        password_field.send_keys(login_credentials['password'])
+        # Wait for the password input field to be present
+        try:
+            password_field = WebDriverWait(driver, 20).until(EC.presence_of_element_located((By.CSS_SELECTOR, "input[name='Password']")))
+            time.sleep(1)
+        except TimeoutException:
+            print("Timed out waiting for password input field to load")
+            return None
+
+        print("2")
+        password_field.send_keys(password)        
+        time.sleep(1)
         password_field.submit()
+        
 
-        print("Logged in! Navigating to duty schedule...")
+        print("Logged in! Navigating to vagtplan...")
+        print("Tryk på Sign in")
         print()
 
-        time.sleep(1)
+        print("3")
+        time.sleep(3)
 
-        driver.get(data_url)
+        # driver.get(data_url)
 
         print("Scraping data from the page")
+        print("4")
         print()
         time.sleep(1)
 
@@ -108,6 +140,7 @@ def login_and_scrape(email, password):
             f.writelines(calendar)
 
         print("iCalendar file 'flexyvagter.ics' has been created!")
+        print(f"ICS file path: {os.path.abspath(ics_file_path)}")  # Print the full path to the ICS file
         print()
 
         return ics_file_path
@@ -119,13 +152,11 @@ def login_and_scrape(email, password):
     finally:
         driver.quit()
 
-@app.route('/download/<email>/<password>')
-def download_ics(email, password):
+if __name__ == '__main__':
+    email = input("Enter your email: ")
+    password = input("Enter your password: ")
     ics_file_path = login_and_scrape(email, password)
     if ics_file_path:
-        return send_file(ics_file_path, as_attachment=True)
+        print(f"Your calendar has been saved to {ics_file_path}")
     else:
-        return "Failed to generate iCalendar file."
-
-if __name__ == '__main__':
-    app.run(debug=True)
+        print("Failed to generate iCalendar file.")
